@@ -182,14 +182,12 @@ var BP3D;
                 startY = startY || 0;
                 //ensure that point(startX, startY) is outside the polygon consists of corners
                 var tMinX = 0, tMinY = 0;
-                if (startX === undefined || startY === undefined) {
-                    for (var tI = 0; tI < corners.length; tI++) {
-                        tMinX = Math.min(tMinX, corners[tI].x);
-                        tMinY = Math.min(tMinX, corners[tI].y);
-                    }
-                    startX = tMinX - 10;
-                    startY = tMinY - 10;
+                for (var tI = 0; tI < corners.length; tI++) {
+                    tMinX = Math.min(tMinX, corners[tI].x);
+                    tMinY = Math.min(tMinX, corners[tI].y);
                 }
+                startX = tMinX - 10;
+                startY = tMinY - 10;
                 var tIntersects = 0;
                 for (var tI = 0; tI < corners.length; tI++) {
                     var tFirstCorner = corners[tI], tSecondCorner;
@@ -1172,6 +1170,11 @@ var BP3D;
                 }
                 this.redrawCallbacks.fire();
             };
+            HalfEdge.prototype.exteriorDistance = function () {
+                var start = this.exteriorStart();
+                var end = this.exteriorEnd();
+                return BP3D.Core.Utils.distance(start.x, start.y, end.x, end.y);
+            };
             HalfEdge.prototype.interiorDistance = function () {
                 var start = this.interiorStart();
                 var end = this.interiorEnd();
@@ -1345,8 +1348,9 @@ var BP3D;
              * @param start Start corner.
              * @param end End corner.
              */
-            function Wall(start, end, height) {
+            function Wall(start, end, height, thickness) {
                 if (height === void 0) { height = -1; }
+                if (thickness === void 0) { thickness = -1; }
                 this.start = start;
                 this.end = end;
                 /** Front is the plane from start to end. */
@@ -1376,6 +1380,9 @@ var BP3D;
                 this.id = this.getUuid();
                 if (height > -1) {
                     this.height = height;
+                }
+                if (thickness > -1) {
+                    this.thickness = thickness;
                 }
                 this.start.attachStart(this);
                 this.end.attachEnd(this);
@@ -1721,9 +1728,10 @@ var BP3D;
              * @param end he end corner.
              * @returns The new wall.
              */
-            Floorplan.prototype.newWall = function (start, end, height) {
+            Floorplan.prototype.newWall = function (start, end, height, thick) {
                 if (height === void 0) { height = -1; }
-                var wall = new Model.Wall(start, end, height);
+                if (thick === void 0) { thick = -1; }
+                var wall = new Model.Wall(start, end, height, thick);
                 this.walls.push(wall);
                 var scope = this;
                 wall.fireOnDelete(function () {
@@ -1748,11 +1756,11 @@ var BP3D;
              * @returns The new corner.
              */
             Floorplan.prototype.newCorner = function (x, y, id) {
+                var _this = this;
                 var corner = new Model.Corner(this, x, y, id);
                 this.corners.push(corner);
-                var scope = this;
                 corner.fireOnDelete(function () {
-                    scope.removeCorner(corner);
+                    _this.removeCorner(corner);
                 });
                 this.new_corner_callbacks.fire(corner);
                 this.update();
@@ -1823,8 +1831,8 @@ var BP3D;
             Floorplan.prototype.loadFloorplan = function (floorplan) {
                 var _this = this;
                 this.reset();
-                var tThick = BP3D.Core.Configuration.getNumericValue(BP3D.Core.configWallThickness);
-                BP3D.Core.Configuration.setValue(BP3D.Core.configWallThickness, tThick * BP3D.Three.CmToWorld);
+                //var thickness = BP3D.Core.Configuration.getNumericValue(BP3D.Core.configWallThickness);
+                //BP3D.Core.Configuration.setValue(BP3D.Core.configWallThickness, thickness * BP3D.Three.CmToWorld);
                 var corners = {};
                 if (floorplan == null || !('corners' in floorplan) || !('walls' in floorplan)) {
                     return;
@@ -1835,14 +1843,21 @@ var BP3D;
                 }
                 var scope = this;
                 floorplan.walls.forEach(function (wall) {
-                    var tWallHeight = -1;
+                    var wallHeight = -1;
                     if (wall.height) {
-                        tWallHeight = wall.height * BP3D.Three.CmToWorld;
+                        wallHeight = wall.height * BP3D.Three.CmToWorld;
                     }
                     else {
-                        tWallHeight = BP3D.Core.Configuration.getNumericValue(BP3D.Core.configWallHeight) * BP3D.Three.CmToWorld;
+                        wallHeight = BP3D.Core.Configuration.getNumericValue(BP3D.Core.configWallHeight) * BP3D.Three.CmToWorld;
                     }
-                    var newWall = scope.newWall(corners[wall.corner1], corners[wall.corner2], tWallHeight);
+                    var wallThickness = -1;
+                    if (wall.thickness) {
+                        wallThickness = wall.thickness * BP3D.Three.CmToWorld;
+                    }
+                    else {
+                        wallThickness = BP3D.Core.Configuration.getNumericValue(BP3D.Core.configWallThickness) * BP3D.Three.CmToWorld;
+                    }
+                    var newWall = scope.newWall(corners[wall.corner1], corners[wall.corner2], wallHeight, wallThickness);
                     if (wall.frontTexture) {
                         newWall.frontTexture = {
                             url: wall.frontTexture.url,
@@ -1860,6 +1875,7 @@ var BP3D;
                 });
                 if ('newFloorTextures' in floorplan) {
                     this.floorTextures = floorplan.newFloorTextures;
+                    //rescale
                     Object.keys(this.floorTextures).forEach(function (k) {
                         var t = _this.floorTextures[k];
                         t.scale *= BP3D.Three.CmToWorld;
@@ -1972,8 +1988,8 @@ var BP3D;
                 this.walls.forEach(function (wall) {
                     if (!wall.backEdge && !wall.frontEdge) {
                         wall.orphan = true;
-                        var back = new Model.HalfEdge(null, wall, false);
-                        back.generatePlane();
+                        // only add a front edge, adding a back edge results in creation of two meshes
+                        // the two meshes then collide creating strange visuals
                         var front = new Model.HalfEdge(null, wall, true);
                         front.generatePlane();
                         orphanWalls.push(wall);
@@ -3594,10 +3610,6 @@ var BP3D;
             }
             function buildFloor() {
                 var textureSettings = scope.room.getTexture();
-                // setup texture
-                // new texture loader
-                //var loader = new THREE.TextureLoader();
-                //var floorTexture = loader.load(textureSettings.url);
                 var floorTexture = THREE.ImageUtils.loadTexture(textureSettings.url);
                 floorTexture.wrapS = THREE.RepeatWrapping;
                 floorTexture.wrapT = THREE.RepeatWrapping;
@@ -3609,17 +3621,24 @@ var BP3D;
                     color: 0xcccccc,
                     specular: 0x0a0a0a
                 });
-                var textureScale = textureSettings.scale;
+                var textureScale = 1; // used to correctly set uv coords 1*1m based        textureSettings.scale;
                 // http://stackoverflow.com/questions/19182298/how-to-texture-a-three-js-mesh-created-with-shapegeometry
                 // scale down coords to fit 0 -> 1, then rescale
                 var points = [];
                 scope.room.interiorCorners.forEach(function (corner) {
                     points.push(new THREE.Vector2(corner.x / textureScale, corner.y / textureScale));
+                    console.log("Roompoint:", corner);
                 });
+                console.log(scope.room);
                 var shape = new THREE.Shape(points);
                 var geometry = new THREE.ShapeGeometry(shape);
                 var floor = new THREE.Mesh(geometry, floorMaterialTop);
-                floor.rotation.set(Math.PI / 2, 0, 0);
+                var tPtIds = [];
+                scope.room.corners.forEach(function (p) {
+                    tPtIds.push(p.id);
+                });
+                floor["SpecialMeshSortedPoints"] = tPtIds.sort().join(",");
+                floor.rotation.set(Math.PI / 2, 0, 0); //NM EXP was 90 degrees, for debug set to PI / 8
                 floor.scale.set(textureScale, textureScale, textureScale);
                 floor.receiveShadow = true;
                 floor.castShadow = false;
@@ -3637,7 +3656,9 @@ var BP3D;
                 });
                 var shape = new THREE.Shape(points);
                 var geometry = new THREE.ShapeGeometry(shape);
+                console.log("create roof");
                 var roof = new THREE.Mesh(geometry, roofMaterial);
+                roof["SpecialMeshName"] = "Roof";
                 roof.rotation.set(Math.PI / 2, 0, 0);
                 roof.position.y = 250;
                 return roof;
@@ -3658,18 +3679,21 @@ var BP3D;
                     }
                     Three.HierarchyConfig.FirstFreeNumber++;
                     tMeshParent.add(floorPlane);
+                    console.log("floor.addToScene will return ", tObj);
+                    return tObj; //NM HACK
                 }
                 else {
                     scene.add(floorPlane);
                     // hack so we can do intersect testing
                     // Todo roofplane handling
                     scene.add(room.floorPlane);
+                    console.log("floor.addToScene will return (nonhierarchy)", floorPlane);
+                    return floorPlane; //NM HACK
                 }
             };
             this.removeFromScene = function () {
                 if (Three.HierarchyConfig.CreateHierarchy) {
                     var selectedObject = scene.getScene().getObjectByName(scope.id);
-                    console.log(selectedObject);
                     scene.getScene().remove(selectedObject);
                 }
                 else {
@@ -3688,13 +3712,17 @@ var BP3D;
 (function (BP3D) {
     var Three;
     (function (Three) {
+        // if using an already existing scenegraph, this creates 
+        // an THREE.Object3D for every wall and (if Prefixlevel==true) yet another level
+        // CreateHierarchy == false uses standard behaviour, i.e. all meshes end up at root level in the scene
+        // TODO make whole blueprint3d Hierarchy- aware
         var HierarchyConfig = (function () {
             function HierarchyConfig() {
             }
-            HierarchyConfig.CreateHierarchy = false;
+            HierarchyConfig.CreateHierarchy = false; //create at least 1 intermediate level for each wall, named wall_1_wl for the first one
             HierarchyConfig.Prefix = "wall_";
             HierarchyConfig.Postfix = "_wl";
-            HierarchyConfig.PrefixLevel = true;
+            HierarchyConfig.PrefixLevel = true; //create a second intermediate level (named without postfix) i.e.  scene -> wall_1_wl -> wall_1 -> meshes
             HierarchyConfig.FirstFreeNumber = 1;
             return HierarchyConfig;
         })();
@@ -3710,25 +3738,30 @@ var BP3D;
             var basePlanes = []; // always visible
             var texture = null;
             var id = null; //for hierarchy
-            // new texture loader
-            //var loader = new THREE.TextureLoader();
-            //var lightMap = loader.load("rooms/textures/walllightmap.png");
-            var lightMap = THREE.ImageUtils.loadTexture("../../shared/rooms/textures/walllightmap.png");
+            //var lightMap = THREE.ImageUtils.loadTexture("../../shared/rooms/textures/walllightmap.png");
+            var lightMap = THREE.ImageUtils.loadTexture("http://localhost:69/modules/kps.online/pages/rooms/textures/walllightmap.png");
             var fillerColor = 0xdddddd;
             var sideColor = 0xcccccc;
             var baseColor = 0xdddddd;
             this.visible = false;
+            this.meshes = [];
             this.remove = function () {
                 edge.redrawCallbacks.remove(redraw);
                 controls.cameraMovedCallbacks.remove(updateVisibility);
                 removeFromScene();
+            };
+            this.getMeshes = function () {
+                return scope.meshes;
             };
             function init() {
                 edge.redrawCallbacks.add(redraw);
                 controls.cameraMovedCallbacks.add(updateVisibility);
                 updateTexture();
                 updatePlanes();
-                addToScene();
+                var nm_planes = addToScene();
+                console.log("init() returns:");
+                console.log(nm_planes);
+                return nm_planes;
             }
             function redraw() {
                 removeFromScene();
@@ -3753,6 +3786,7 @@ var BP3D;
                 basePlanes = [];
             }
             function addToScene() {
+                console.log(new Error());
                 var tMeshParent = scene.getScene(); // should be Three.scene or three.Object3D
                 if (HierarchyConfig.CreateHierarchy) {
                     var tObj = new THREE.Object3D();
@@ -3770,7 +3804,6 @@ var BP3D;
                     HierarchyConfig.FirstFreeNumber++;
                 }
                 else {
-                    console.log(HierarchyConfig);
                 }
                 planes.forEach(function (plane) {
                     tMeshParent.add(plane);
@@ -3779,8 +3812,15 @@ var BP3D;
                     tMeshParent.add(plane);
                 });
                 updateVisibility();
+                var tResult = [];
+                tResult.push(planes);
+                tResult.push(basePlanes);
+                console.log(tResult);
+                return tResult;
             }
             function updateVisibility() {
+                console.warn("three/edge.ts   updateVisibility destroyed by nm, worked only with own camera");
+                return;
                 // finds the normal from the specified edge
                 var start = edge.interiorStart();
                 var end = edge.interiorEnd();
@@ -3820,9 +3860,6 @@ var BP3D;
                 var stretch = textureData.stretch;
                 var url = textureData.url;
                 var scale = textureData.scale;
-                // new texture loader
-                //var loader = new THREE.TextureLoader();
-                //texture = loader.load(url, callback);
                 texture = THREE.ImageUtils.loadTexture(url, null, callback);
                 if (!stretch) {
                     var height = wall.height;
@@ -3846,17 +3883,36 @@ var BP3D;
                     side: THREE.DoubleSide
                 });
                 // exterior plane
-                planes.push(makeWall(edge.exteriorStart(), edge.exteriorEnd(), edge.exteriorTransform, edge.invExteriorTransform, fillerMaterial));
+                console.log("-----------exterior plane:");
+                var tExterior = makeWall(edge.exteriorStart(), edge.exteriorEnd(), edge.exteriorTransform, edge.invExteriorTransform, fillerMaterial);
+                tExterior["SpecialMeshName"] = "Exterior";
+                planes.push(tExterior);
                 // interior plane
-                planes.push(makeWall(edge.interiorStart(), edge.interiorEnd(), edge.interiorTransform, edge.invInteriorTransform, wallMaterial));
+                console.log("-----------interior plane:");
+                var tInterior = makeWall(edge.interiorStart(), edge.interiorEnd(), edge.interiorTransform, edge.invInteriorTransform, wallMaterial);
+                tInterior["SpecialMeshName"] = "Interior";
+                planes.push(tInterior);
                 // bottom
                 // put into basePlanes since this is always visible
-                basePlanes.push(buildFiller(edge, 0, THREE.BackSide, baseColor));
+                var tBottom = buildFiller(edge, 0, THREE.BackSide, baseColor);
+                tBottom["SpecialMeshName"] = "Bottom";
+                tBottom["SpecialMeshStartEnd"] = edge.wall.getStart().id + "#" + edge.wall.getEnd().id;
+                tBottom["SpecialFront"] = edge.front;
+                basePlanes.push(tBottom);
                 // top
-                planes.push(buildFiller(edge, wall.height, THREE.DoubleSide, fillerColor));
+                var tTopMesh = buildFiller(edge, wall.height, THREE.DoubleSide, fillerColor);
+                tTopMesh["SpecialMeshName"] = "Top";
+                tTopMesh["SpecialMeshStartEnd"] = edge.wall.getStart().id + "#" + edge.wall.getEnd().id;
+                tTopMesh["SpecialFront"] = edge.front;
+                planes.push(tTopMesh);
                 // sides
-                planes.push(buildSideFillter(edge.interiorStart(), edge.exteriorStart(), wall.height, sideColor));
-                planes.push(buildSideFillter(edge.interiorEnd(), edge.exteriorEnd(), wall.height, sideColor));
+                var tSide1 = buildSideFillter(edge.interiorStart(), edge.exteriorStart(), wall.height, sideColor);
+                tSide1["SpecialMeshName"] = "Side";
+                planes.push(tSide1);
+                var tSide2 = buildSideFillter(edge.interiorEnd(), edge.exteriorEnd(), wall.height, sideColor);
+                tSide2["SpecialMeshName"] = "Side";
+                planes.push(tSide2);
+                console.log(planes);
             }
             // start, end have x and y attributes (i.e. corners)
             function makeWall(start, end, transform, invTransform, material) {
@@ -3876,6 +3932,11 @@ var BP3D;
                     new THREE.Vector2(points[2].x, points[2].y),
                     new THREE.Vector2(points[3].x, points[3].y)
                 ]);
+                console.log("makeWall creates Shape the following way:");
+                console.log(points[0].x, points[0].y);
+                console.log(points[1].x, points[1].y);
+                console.log(points[2].x, points[2].y);
+                console.log(points[3].x, points[3].y);
                 // add holes for each wall item
                 wall.items.forEach(function (item) {
                     var pos = item.position.clone();
@@ -3894,16 +3955,29 @@ var BP3D;
                     shape.holes.push(new THREE.Path(holePoints));
                 });
                 var geometry = new THREE.ShapeGeometry(shape);
+                console.log("unmodified shape geometry nwas:");
+                console.log(JSON.stringify(geometry.vertices));
                 geometry.vertices.forEach(function (v) {
                     v.applyMatrix4(invTransform);
                 });
+                console.log("moved and rotated");
+                console.log(JSON.stringify(geometry.vertices));
+                var translation = new THREE.Vector3(), rotationq = new THREE.Quaternion(), scale = new THREE.Vector3();
+                invTransform.decompose(translation, rotationq, scale);
+                var rotation = new THREE.Euler(0, 0, 0, "XYZ");
+                rotation.setFromQuaternion(rotationq, "XYZ");
+                console.log(JSON.stringify({ tra: translation, rot: rotation, sca: scale }));
+                console.log("making UVs needs lots of work");
                 // make UVs
                 var totalDistance = BP3D.Core.Utils.distance(v1.x, v1.z, v2.x, v2.z);
                 var height = wall.height;
                 geometry.faceVertexUvs[0] = [];
                 function vertexToUv(vertex) {
-                    var x = BP3D.Core.Utils.distance(v1.x, v1.z, vertex.x, vertex.z) / totalDistance;
-                    var y = vertex.y / height;
+                    console.log(new Error());
+                    console.log(v1.x, v1.z, vertex.x, vertex.z, totalDistance);
+                    console.log(vertex.y, height);
+                    var x = BP3D.Core.Utils.distance(v1.x, v1.z, vertex.x, vertex.z); //NM experiment
+                    var y = vertex.y; //NM experiment
                     return new THREE.Vector2(x, y);
                 }
                 geometry.faces.forEach(function (face) {
@@ -3914,6 +3988,7 @@ var BP3D;
                         vertexToUv(vertA),
                         vertexToUv(vertB),
                         vertexToUv(vertC)]);
+                    console.log("UV generated: write UV: ", JSON.stringify(geometry.faceVertexUvs[0]));
                 });
                 geometry.faceVertexUvs[1] = geometry.faceVertexUvs[0];
                 geometry.computeFaceNormals();
@@ -3948,6 +4023,7 @@ var BP3D;
                     toVec2(edge.interiorEnd()),
                     toVec2(edge.interiorStart())
                 ];
+                console.log("TOP buildfiller mesh generated:" + JSON.stringify(points));
                 var fillerMaterial = new THREE.MeshBasicMaterial({
                     color: color,
                     side: side
@@ -3966,7 +4042,7 @@ var BP3D;
                 height = height || 0;
                 return new THREE.Vector3(pos.x, height, pos.y);
             }
-            init();
+            scope.meshes = init();
         };
     })(Three = BP3D.Three || (BP3D.Three = {}));
 })(BP3D || (BP3D = {}));
@@ -3978,6 +4054,10 @@ var BP3D;
     var Three;
     (function (Three) {
         Three.Floorplan = function (scene, floorplan, controls) {
+            console.log("BP3D.Three.Floorplan:");
+            console.log(scene);
+            console.log(floorplan);
+            console.log(controls);
             var scope = this;
             this.scene = scene;
             this.floorplan = floorplan;
@@ -3986,27 +4066,39 @@ var BP3D;
             this.edges = [];
             floorplan.fireOnUpdatedRooms(redraw);
             function redraw() {
+                console.log("start redraw");
                 // clear scene
                 scope.floors.forEach(function (floor) {
+                    console.log("clear floor");
                     floor.removeFromScene();
                 });
                 scope.edges.forEach(function (edge) {
+                    console.log("clear edge");
                     edge.remove();
                 });
                 scope.floors = [];
                 scope.edges = [];
+                var nm_meshes = [];
                 // draw floors
                 scope.floorplan.getRooms().forEach(function (room) {
                     var threeFloor = new Three.Floor(scene, room);
                     scope.floors.push(threeFloor);
-                    threeFloor.addToScene();
+                    nm_meshes.push(threeFloor.addToScene());
                 });
                 // draw edges
                 scope.floorplan.wallEdges().forEach(function (edge) {
                     var threeEdge = new Three.Edge(scene, edge, scope.controls);
                     scope.edges.push(threeEdge);
+                    console.log(threeEdge);
+                    var tMeshes = threeEdge.getMeshes();
+                    console.log(tMeshes);
+                    nm_meshes.push(tMeshes);
                 });
+                console.log("end redraw(), created meshes:");
+                console.log(nm_meshes);
+                return nm_meshes;
             }
+            BP3D.Three.cbb = redraw;
         };
     })(Three = BP3D.Three || (BP3D.Three = {}));
 })(BP3D || (BP3D = {}));
@@ -4686,7 +4778,7 @@ var BP3D;
 /// <reference path="../../lib/jQuery.d.ts" />
 /// <reference path="../../lib/three.d.ts" />
 /// <reference path="controller.ts" />
-/// <reference path="floorPlan.ts" />
+/// <reference path="floorplan.ts" />
 /// <reference path="lights.ts" />
 /// <reference path="skybox.ts" />
 /// <reference path="controls.ts" />
@@ -4746,11 +4838,6 @@ var BP3D;
                 THREE.ImageUtils.crossOrigin = "";
                 domElement = scope.element.get(0); // Container
                 camera = new THREE.PerspectiveCamera(45, 1, 1, 10000);
-                //      if (false || alreadyRenderer) {
-                //          renderer = alreadyRenderer;
-                //          hasOwnRenderer = false;
-                //      }
-                //      else {	
                 renderer = new THREE.WebGLRenderer({
                     antialias: true,
                     preserveDrawingBuffer: true // required to support .toDataURL()
@@ -4759,7 +4846,6 @@ var BP3D;
                     renderer.shadowMapEnabled = true;
                 renderer.shadowMapSoft = true;
                 renderer.shadowMapType = THREE.PCFSoftShadowMap;
-                //    }
                 var skybox = new Three.Skybox(scene);
                 scope.controls = new Three.Controls(camera, domElement);
                 hud = new Three.HUD(scope);
