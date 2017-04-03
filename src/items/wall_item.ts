@@ -132,14 +132,29 @@ namespace BP3D.Items {
         this.position.copy(newPos);
         this.redrawWall();
       }
+      if (!this.isValidPosition(this.position)) {
+        this.showInvalidPositionError(this.position);
+      }
     };
 
     /** */
+    public isValidPosition(vec3): boolean {
+      return this.isObjectOutsideOtherObjects(this.getCorners('x', 'z', vec3));
+    }
+
+    /** */
     public moveToPosition(vec3, intersection) {
+      // Hide all errors first
+      this.hideAllErrors();
       this.changeWallEdge(intersection.object.edge);
       this.boundMove(vec3);
-      this.position.copy(vec3);
-      this.redrawWall();
+      if (!this.isValidPosition(vec3)) {
+        this.showError(vec3);
+      } else {
+        this.hideError();
+        this.position.copy(vec3);
+        this.redrawWall();
+      }
     }
 
     /** */

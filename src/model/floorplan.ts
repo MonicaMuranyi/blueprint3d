@@ -3,6 +3,7 @@
 /// <reference path="../core/utils.ts" />
 /// <reference path="wall.ts" />
 /// <reference path="corner.ts" />
+/// <reference path="floor_zone.ts" />
 /// <reference path="room.ts" />
 /// <reference path="half_edge.ts" />
 
@@ -17,6 +18,9 @@ module BP3D.Model {
 
     /** */
     private walls: Wall[] = [];
+
+    /** */
+    private floorZones: FloorZone[] = [];
 
     /** */
     private corners: Corner[] = [];
@@ -152,6 +156,23 @@ module BP3D.Model {
       Core.Utils.removeValue(this.corners, corner);
     }
 
+    /**
+     * Creates a new corner.
+     * @param x The x coordinate.
+     * @param y The y coordinate.
+     * @param id An optional id. If unspecified, the id will be created internally.
+     * @returns The new corner.
+     */
+    public newFloorZone(x: number, y: number, id?: string): Corner {
+      var corner = new Corner(this, x, y, id);
+      this.corners.push(corner);
+      corner.fireOnDelete(() => {
+        this.removeCorner;
+      });
+      this.new_corner_callbacks.fire(corner);
+      return corner;
+    }
+
     /** Gets the walls. */
     public getWalls(): Wall[] {
       return this.walls;
@@ -165,6 +186,26 @@ module BP3D.Model {
     /** Gets the rooms. */
     public getRooms(): Room[] {
       return this.rooms;
+    }
+
+    /** Gets the floor zones. */
+    public getFloorZones(): FloorZone[] {
+      return this.floorZones;
+    }
+
+    /** Adds a floor zone. */
+    public addFloorZone(floorZone: FloorZone) {
+      return this.floorZones.push(floorZone);
+    }
+
+    /** Adds a floor zone. */
+    public removeFloorZone(id: string) {
+      for (var i = 0; i < this.floorZones.length; ++i) {
+        if (this.floorZones[i].getId() === id) {
+          this.floorZones.splice(i, 1);
+          break;
+        }
+      }
     }
 
     public overlappedCorner(x: number, y: number, tolerance?: number): Corner {
@@ -193,6 +234,7 @@ module BP3D.Model {
       var floorplan = {
         corners: {},
         walls: [],
+        floorZones: [],
         wallTextures: [],
         floorTextures: {},
         newFloorTextures: {}
@@ -214,6 +256,7 @@ module BP3D.Model {
         });
       });
       floorplan.newFloorTextures = this.floorTextures;
+      floorplan.floorZones = this.floorZones;
       return floorplan;
     }
 
@@ -243,6 +286,15 @@ module BP3D.Model {
       if ('newFloorTextures' in floorplan) {
         this.floorTextures = floorplan.newFloorTextures;
       }
+
+      floorplan.floorZones.forEach((serializedFloorZone) => {
+        const floorZone = new FloorZone(serializedFloorZone.name, serializedFloorZone.color, serializedFloorZone.id);
+        serializedFloorZone.floorTiles.forEach((serializedFloorTile) => {
+          const floorTile = new FloorTile(serializedFloorTile.row, serializedFloorTile.col);
+          floorZone.toggleTile(floorTile);
+        });
+        scope.addFloorZone(floorZone);
+      });
 
       this.update();
       this.roomLoadedCallbacks.fire();
@@ -290,7 +342,7 @@ module BP3D.Model {
     }
 
     /** 
-     * Update rooms
+     * Update rooms and floor tiles
      */
     public update() {
       this.walls.forEach((wall) => {

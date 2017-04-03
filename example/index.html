@@ -28,6 +28,10 @@
               Edit Floorplan
               <span class="glyphicon glyphicon-chevron-right pull-right"></span>
             </a></li>
+            <li id="define_zones_tab"><a href="#">
+              Define Zones
+              <span class="glyphicon glyphicon-chevron-right pull-right"></span>
+            </a></li>
             <li id="design_tab"><a href="#">
               Design
               <span class="glyphicon glyphicon-chevron-right pull-right"></span>
@@ -87,6 +91,8 @@
             <br /><br />
             </div>
           </div>
+
+          <div id="zone-controls"></div>
 
           <!-- Floor textures -->
           <div id="floorTexturesDiv" style="display:none; padding: 0 20px">
@@ -198,6 +204,10 @@
                 <span class="glyphicon glyphicon-remove"></span>
                 Delete Walls
               </button>
+              <button id="defineZones" class="btn btn-sm btn-default">
+                <span class="glyphicon glyphicon-pencil"></span>
+                Save Plan and Define Zones
+              </button>
               <span class="pull-right">
                 <button class="btn btn-primary btn-sm" id="update-floorplan">Done &raquo;</button>
               </span>
@@ -205,6 +215,20 @@
             </div>
             <div id="draw-walls-hint">
               Press the "Esc" key to stop drawing walls
+            </div>
+          </div>
+
+          <!-- 2D Define Zones -->
+          <div id="define-zones">
+            <canvas id="define-zones-canvas"></canvas>
+            <div id="define-zones-controls">
+
+              
+
+              <span class="pull-right">
+                <button class="btn btn-primary btn-sm" id="update-define-zones">Done &raquo;</button>
+              </span>
+
             </div>
           </div>
 

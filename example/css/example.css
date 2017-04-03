@@ -112,7 +112,8 @@ div {
   text-align: right;
 }
 
-#floorplanner-controls {
+#floorplanner-controls,
+#define-zones-controls {
   position: absolute;
   left: 0;
   top: 0;
@@ -153,4 +154,21 @@ div {
   opacity: 0;
   cursor: inherit;
   display: block;
+}
+
+#zone-controls .glyphicon {
+  margin-left: 10px;
+  margin-right: 5px;
+  cursor: pointer;
+}
+.zone-control .zone-name {
+  width: 156px;
+  display: inline-block;
+  overflow: hidden;
+}
+.zone-control .color-box {
+  width: 12px;
+  height: 12px;
+  display: inline-block;
+  margin-right: 10px;
 }

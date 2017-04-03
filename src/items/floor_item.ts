@@ -1,5 +1,6 @@
 /// <reference path="../../lib/three.d.ts" />
 /// <reference path="../model/model.ts" />
+/// <reference path="../core/utils.ts" />
 /// <reference path="item.ts" />
 /// <reference path="metadata.ts" />
 
@@ -20,6 +21,9 @@ module BP3D.Items {
         this.position.z = center.z;
         this.position.y = 0.5 * (this.geometry.boundingBox.max.y - this.geometry.boundingBox.min.y);
       }
+      if (!this.isValidPosition(this.position)) {
+        this.showInvalidPositionError(this.position);
+      }
     };
 
     /** Take action after a resize */
@@ -29,6 +33,8 @@ module BP3D.Items {
 
     /** */
     public moveToPosition(vec3, intersection) {
+      // Hide all errors first
+      this.hideAllErrors();
       // keeps the position in the room and on the floor
       if (!this.isValidPosition(vec3)) {
         this.showError(vec3);
@@ -54,27 +60,10 @@ module BP3D.Items {
         }
       }
       if (!isInARoom) {
-        //console.log('object not in a room');
+        console.log('object not in a room');
         return false;
       }
-
-      // check if we are outside all other objects
-      /*
-      if (this.obstructFloorMoves) {
-          var objects = this.model.items.getItems();
-          for (var i = 0; i < objects.length; i++) {
-              if (objects[i] === this || !objects[i].obstructFloorMoves) {
-                  continue;
-              }
-              if (!utils.polygonOutsidePolygon(corners, objects[i].getCorners('x', 'z')) ||
-                  utils.polygonPolygonIntersect(corners, objects[i].getCorners('x', 'z'))) {
-                  //console.log('object not outside other objects');
-                  return false;
-              }
-          }
-      }*/
-
-      return true;
+      return this.isObjectOutsideOtherObjects(corners);
     }
   }
 }

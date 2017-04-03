@@ -17,6 +17,9 @@ module BP3D.Items {
     private errorGlow = new THREE.Mesh();
 
     /** */
+    protected invalidPositionGlow = new THREE.Mesh();
+
+    /** */
     private hover = false;
 
     /** */
@@ -154,6 +157,11 @@ module BP3D.Items {
     }
 
     /** */
+    public getObstructFloorMoves = function () {
+      return this.obstructFloorMoves;
+    }
+
+    /** */
     public abstract placeInRoom();
 
     /** */
@@ -218,6 +226,7 @@ module BP3D.Items {
 
     /** */
     public rotate(intersection) {
+      this.hideAllErrors();
       if (intersection) {
         var angle = Core.Utils.angle(
           0,
@@ -236,6 +245,11 @@ module BP3D.Items {
         }
 
         this.rotation.y = angle;
+      }
+      if (!this.isValidPosition(this.position)) {
+        this.showError(this.position);
+      } else {
+        this.hideError();
       }
     }
 
@@ -266,7 +280,7 @@ module BP3D.Items {
      * 
      * TODO: handle rotated objects better!
      */
-    public getCorners(xDim, yDim, position) {
+    public getCorners(xDim, yDim, position?) {
 
       position = position || this.position;
 
@@ -310,13 +324,15 @@ module BP3D.Items {
     public abstract isValidPosition(vec3): boolean;
 
     /** */
-    public showError(vec3) {
+    public showError(vec3?, rotation?) {
       vec3 = vec3 || this.position;
+      rotation = rotation || this.rotation;
       if (!this.error) {
         this.error = true;
         this.errorGlow = this.createGlow(this.errorColor, 0.8, true);
         this.scene.add(this.errorGlow);
       }
+      this.errorGlow.rotation.copy(rotation);
       this.errorGlow.position.copy(vec3);
     }
 
@@ -326,6 +342,18 @@ module BP3D.Items {
         this.error = false;
         this.scene.remove(this.errorGlow);
       }
+    }
+
+    /** Shows an error glow when an object is in an invalid position */
+    public showInvalidPositionError(vec3) {
+      this.invalidPositionGlow = this.createGlow(this.errorColor, 0.8, true);
+      this.scene.add(this.invalidPositionGlow);
+      this.errorGlow.position.copy(vec3);
+    }
+
+    /** Hides the error glow of an object which exited an invalid position */
+    public hideInvalidPositionError() {
+      this.scene.remove(this.invalidPositionGlow);
     }
 
     /** */
@@ -353,5 +381,31 @@ module BP3D.Items {
       glow.scale.copy(this.scale);
       return glow;
     };
+
+    /** Decides if an object doesn't collide with other objects */
+    public isObjectOutsideOtherObjects(corners): boolean {
+      if (this.getObstructFloorMoves()) {
+        var objects = this.model.scene.getItems();
+        for (var i = 0; i < objects.length; i++) {
+          if (objects[i] === this || !objects[i].getObstructFloorMoves()) {
+              continue;
+          }
+          if (!Core.Utils.polygonOutsidePolygon(corners, objects[i].getCorners('x', 'z')) ||
+            Core.Utils.polygonPolygonIntersect(corners, objects[i].getCorners('x', 'z'))) {
+            console.log('object not outside other objects');
+            return false;
+          }
+        }
+      }
+      return true;
+    }
+
+    /** Hides all error glows */
+    public hideAllErrors() {
+      this.model.scene.getItems().forEach((item) => {
+        item.hideError();
+      });
+      this.hideInvalidPositionError();
+    }
   }
 }

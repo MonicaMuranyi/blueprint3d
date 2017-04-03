@@ -1,5 +1,6 @@
 /// <reference path="model/model.ts" />
 /// <reference path="floorplanner/floorplanner.ts" />
+/// <reference path="floorplanner/define_zones.ts" />
 /// <reference path="three/main.ts" />
 
 module BP3D {
@@ -17,6 +18,12 @@ module BP3D {
     /** */
     floorplannerElement?: string;
 
+    /** */
+    defineZonesElement?: string;
+
+    /** Thw floor zones list menu */
+    floorZonesContextMenuElement?: string;
+
     /** The texture directory. */
     textureDir?: string;
   }
@@ -30,6 +37,8 @@ module BP3D {
 
     private floorplanner: Floorplanner.Floorplanner;
 
+    private defineZones: Floorplanner.DefineZones;
+
     /** Creates an instance.
      * @param options The initialization options.
      */
@@ -39,6 +48,8 @@ module BP3D {
 
       if (!options.widget) {
         this.floorplanner = new Floorplanner.Floorplanner(options.floorplannerElement, this.model.floorplan);
+        this.defineZones = new Floorplanner.DefineZones(options.defineZonesElement, options.floorZonesContextMenuElement,
+          this.model.floorplan);
       }
       else {
         this.three.getController().enabled = false;

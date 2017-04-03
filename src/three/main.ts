@@ -73,7 +73,7 @@ module BP3D.Three {
         preserveDrawingBuffer: true // required to support .toDataURL()
       });
       renderer.autoClear = false,
-        renderer.shadowMapEnabled = true;
+      renderer.shadowMapEnabled = true;
       renderer.shadowMapSoft = true;
       renderer.shadowMapType = THREE.PCFSoftShadowMap;
 

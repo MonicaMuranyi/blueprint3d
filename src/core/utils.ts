@@ -265,7 +265,7 @@ module BP3D.Core {
     }
 
     /** Checks if any corners of firstCorners is inside the polygon described by secondCorners */
-    static polygonOutsidePolygon(insideCorners, outsideCorners, startX: number, startY: number): boolean {
+    static polygonOutsidePolygon(insideCorners, outsideCorners, startX?: number, startY?: number): boolean {
       startX = startX || 0;
       startY = startY || 0;
 
@@ -360,6 +360,16 @@ module BP3D.Core {
       return Utils.removeIf(array, function (el) {
         return Utils.hasValue(subArray, el);
       });
+    }
+
+    /** Generates a random color */
+    static generateColor() {
+      const letters = '0123456789ABCDEF'.split('');
+      let color = '#';
+      for (var i = 0; i < 6; i++) {
+          color += letters[Math.round(Math.random() * 15)];
+      }
+      return color;
     }
   }
 }

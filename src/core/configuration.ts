@@ -14,14 +14,21 @@ module BP3D.Core {
   /** The initial wall thickness in cm. */
   export const configWallThickness = "wallThickness";
 
+  /** The floor zone tile width. */
+  export const floorZoneSpacingX = "floorZoneSpacingX";
+
+  /** The floor zone tile height. */
+  export const floorZoneSpacingY = "floorZoneSpacingY";
+
   /** Global configuration to customize the whole system.  */
   export class Configuration {
     /** Configuration data loaded from/stored to extern. */
     private static data: {[key: string]: any} = {
       dimUnit: dimInch,
-
       wallHeight: 250,
-      wallThickness: 10
+      wallThickness: 10,
+      floorZoneSpacingX: 20,
+      floorZoneSpacingY: 30
     };
 
     /** Set a configuration parameter. */
@@ -44,6 +51,8 @@ module BP3D.Core {
       switch (key) {
         case configWallHeight:
         case configWallThickness:
+        case floorZoneSpacingX:
+        case floorZoneSpacingY:
           return <number>this.data[key];
         default:
           throw new Error("Invalid numeric configuration parameter: " + key);
